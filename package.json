@@ -1,0 +1,32 @@
+{
+  "name": "roomscout-dev-portal",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint ."
+  },
+  "dependencies": {
+    "@agentmail/convex": "^0.1.0",
+    "@clerk/nextjs": "7.8.3",
+    "convex": "1.45.0",
+    "next": "16.3.4",
+    "react": "19.2.8",
+    "react-dom": "19.2.8",
+    "zod": "4.4.3"
+  },
+  "devDependencies": {
+    "@types/node": "24.10.13",
+    "@types/react": "19.2.18",
+    "@types/react-dom": "19.2.5",
+    "convex-test": "^0.0.56",
+    "eslint": "^9.39.5",
+    "eslint-config-next": "16.3.4",
+    "typescript": "^6.0.3",
+    "vitest": "^4.1.11"
+  }
+}
