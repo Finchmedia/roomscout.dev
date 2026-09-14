@@ -8,7 +8,8 @@
     "start": "next start",
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
-    "lint": "eslint ."
+    "lint": "eslint .",
+    "postinstall": "patch-package"
   },
   "dependencies": {
     "@agentmail/convex": "^0.1.0",
@@ -26,6 +27,7 @@
     "convex-test": "^0.0.56",
     "eslint": "^9.39.5",
     "eslint-config-next": "16.3.4",
+    "patch-package": "^8.0.1",
     "typescript": "^6.0.3",
     "vitest": "^4.1.11"
   }
