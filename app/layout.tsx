@@ -9,6 +9,11 @@ export const metadata: Metadata = {
   title: "RoomScout Community Portal",
   description: "A controlled rehearsal-room portal used to test public discovery and consent-based messaging.",
   icons: { icon: "/favicon.png", apple: "/apple-touch-icon.png" },
+  openGraph: {
+    title: "RoomScout Community Portal",
+    description: "Explore fictional rehearsal rooms and talk with AI-simulated providers in the RoomScout demo portal.",
+    images: [{ url: "https://roomscout.dev/demo-rooms/kanalwerk-a.webp", alt: "Fictional Berlin rehearsal room with drums and amplifiers" }],
+  },
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
@@ -25,7 +30,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
                 <Show when="signed-out"><SignInButton><button className="button secondary" type="button">Sign in</button></SignInButton><Link className="button" href="/sign-up">Join</Link></Show>
               </nav>
             </header>
-            <div className="demo-banner"><strong>Controlled demo source.</strong> Public listings are crawlable; messages require a real verified portal account.</div>
+            <div className="demo-banner"><strong>Demo portal:</strong> all rooms and images are fictional, providers are AI-simulated. No real bookings.</div>
             {children}
           </ConvexClientProvider>
         </ClerkProvider>

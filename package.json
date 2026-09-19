@@ -13,7 +13,12 @@
   },
   "dependencies": {
     "@agentmail/convex": "^0.1.0",
+    "@ai-sdk/openai-compatible": "3.0.14",
+    "@ai-sdk/provider": "4.0.8",
     "@clerk/nextjs": "7.8.3",
+    "@convex-dev/agent": "0.7.1",
+    "@convex-dev/workpool": "0.4.11",
+    "ai": "7.0.83",
     "convex": "1.45.0",
     "next": "16.3.4",
     "react": "19.2.8",

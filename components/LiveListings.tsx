@@ -17,6 +17,7 @@ function ListingCard({ listing }: { listing: PublicListing }) {
       className="listing-card"
       data-roomscout-listing-id={listing._id}
     >
+      {listing.imageUrl ? <img alt={`${listing.title}, rehearsal room in ${listing.city}`} className="listing-image" loading="lazy" src={listing.imageUrl} /> : null}
       <div className="listing-meta">
         <span className={`tag ${listing.side}`} data-roomscout-side>
           {listing.side === "supply" ? "Room available" : "Room wanted"}
@@ -31,6 +32,7 @@ function ListingCard({ listing }: { listing: PublicListing }) {
       <p className="location" data-roomscout-location>
         {listing.city}
         {listing.district ? ` · ${listing.district}` : ""}
+        {listing.street ? ` · ${listing.street}` : ""}
       </p>
       <p data-roomscout-description>{listing.description}</p>
       <div className="listing-footer">

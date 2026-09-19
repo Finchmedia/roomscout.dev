@@ -12,9 +12,27 @@ fixture UI inside the RoomScout product.
 - Auth: separate Clerk application with email/password and verification-code
   support
 
-The public listing and Clerk entry routes are live. Completing the controlled
-AgentMail OTP → persisted Browserbase session → native message loop remains a
-separate provider proof and must not be inferred from deployment alone.
+The public listing and Clerk entry routes are live. The controlled registration,
+native-message and provider-reply loop was verified for the BER01 pilot below;
+deployment alone is not evidence that every scenario has been exercised.
+
+The fictional Berlin provider engine is deployed, with acceptance still in
+progress. Its catalog seed inserted 24 controlled listings into
+`sensible-ladybug-38`; an immediate second run reported 24 unchanged records
+and preserved the older Stuttgart listing. RoomScout then processed all 24
+public detail pages through its normal Firecrawl path as distinct AI-simulated
+signals. A fresh account completed normal portal registration, sent the BER01
+initial inquiry, received a real AI reply through the portal notification path,
+and produced a main-app assessment. All 24 Berlin scenario mappings are enabled.
+Microphone and full human binding acceptance are
+not yet proven.
+
+Room images are generated with OpenAI Imagegen and stored under
+`public/demo-rooms/`; the public-only prompt set is in
+`providerScenarios/room-image-prompts.json`. All 25 published room images have
+been imported by RoomScout through Firecrawl. Listing copy uses normal room
+facts and real street names without house numbers; one portal-wide banner
+explains the simulation instead of repeating it inside every listing.
 
 ## What it proves
 
@@ -27,6 +45,10 @@ separate provider proof and must not be inferred from deployment alone.
   thread HTML is server-rendered first for deterministic Browserbase reads,
   then kept reactive by Convex. Only the listing owner or initiating account
   can read a thread.
+- Each AI-simulated provider conversation owns a separate thread in the Convex
+  Agent Component. The shared engine loads the listing's versioned fictional
+  profile and persists conversation state per portal thread; it does not run 24
+  separate agent deployments.
 - Every new portal message can enqueue one transactional "new message" email
   through the official `@agentmail/convex` component. The component supplies
   its own Workpool-backed durable queue and retries. The portal's transactional
@@ -98,6 +120,12 @@ deployed Clerk email-verification and Browserbase session proof.
 The current `roomscout.dev` deployment still uses a Clerk development instance.
 That is adequate for this bounded controlled proof but must be replaced by
 production Clerk keys before treating the portal as production-ready.
+
+The main RoomScout landing page reuses its existing orange Mapbox renderer for
+the versioned public-research snapshot. Its browser configuration uses an
+existing public token from the Jumper map configuration; no token value belongs
+in this README. Fictional Berlin listings remain separate from real research
+coverage.
 
 Before a live demo, create only controlled accounts and listings. RoomScout must
 still apply its own exact Approve / non-binding YOLO policy before Browserbase

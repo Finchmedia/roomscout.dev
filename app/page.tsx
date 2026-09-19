@@ -13,6 +13,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ s
   return (
     <main>
       <section className="hero">
+        <img alt="Fictional Berlin rehearsal room with drums and amplifiers" className="hero-room-image" src="/demo-rooms/kanalwerk-a.webp" />
         <p className="eyebrow">Independent rehearsal-room classifieds</p>
         <h1>Rooms and bands,<br />in one public index.</h1>
         <p>Post an available rehearsal space or a room request. Account verification and native messages behave like a real community portal.</p>

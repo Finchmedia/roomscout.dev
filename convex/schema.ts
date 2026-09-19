@@ -32,6 +32,63 @@ export default defineSchema({
     body: v.string(),
   }).index("by_run_and_request", ["runId", "requestKey"]),
 
+  simulatedProviderListings: defineTable({
+    listingId: v.id("listings"),
+    seedKey: v.string(),
+    scenarioId: v.string(),
+    scenarioVersion: v.number(),
+    enabled: v.boolean(),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_listing_id", ["listingId"])
+    .index("by_seed_key", ["seedKey"]),
+
+  simulatedProviderThreads: defineTable({
+    threadId: v.id("threads"),
+    listingId: v.id("listings"),
+    participantId: v.string(),
+    scenarioId: v.string(),
+    scenarioVersion: v.number(),
+    agentThreadId: v.string(),
+    locale: v.union(v.literal("en"), v.literal("de")),
+    stateKey: v.string(),
+    replyCount: v.number(),
+    activeJobId: v.optional(v.id("simulatedProviderJobs")),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_thread_id", ["threadId"])
+    .index("by_listing_id_and_participant_id", ["listingId", "participantId"]),
+
+  simulatedProviderJobs: defineTable({
+    threadId: v.id("threads"),
+    inputMessageId: v.id("messages"),
+    locale: v.union(v.literal("en"), v.literal("de")),
+    agentInputMessageId: v.optional(v.string()),
+    agentResponseMessageId: v.optional(v.string()),
+    status: v.union(
+      v.literal("queued"),
+      v.literal("processing"),
+      v.literal("completed"),
+      v.literal("failed"),
+    ),
+    attemptCount: v.number(),
+    manualRetryCount: v.number(),
+    workId: v.optional(v.string()),
+    claimToken: v.optional(v.string()),
+    leaseExpiresAt: v.optional(v.number()),
+    responseMessageId: v.optional(v.id("messages")),
+    errorCode: v.optional(v.string()),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+    completedAt: v.optional(v.number()),
+  })
+    .index("by_input_message_id", ["inputMessageId"])
+    .index("by_thread_id_and_created_at", ["threadId", "createdAt"])
+    .index("by_thread_id_and_status_and_created_at", ["threadId", "status", "createdAt"])
+    .index("by_status_and_updated_at", ["status", "updatedAt"]),
+
   portalUsers: defineTable({
     authSubject: v.string(),
     emailAddress: v.string(),
@@ -47,7 +104,9 @@ export default defineSchema({
     title: v.string(),
     city: v.string(),
     district: v.optional(v.string()),
+    street: v.optional(v.string()),
     description: v.string(),
+    imageUrl: v.optional(v.string()),
     priceEur: v.optional(v.number()),
     pricePeriod: v.optional(v.union(v.literal("hour"), v.literal("month"))),
     status: v.union(v.literal("published"), v.literal("closed")),

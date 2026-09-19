@@ -1,6 +1,6 @@
 import { ConvexError, v } from "convex/values";
 import type { Doc } from "./_generated/dataModel";
-import { mutation, query } from "./_generated/server";
+import { mutation, query, type QueryCtx } from "./_generated/server";
 import { upsertPortalUser } from "./portalUsers";
 
 const listingValidator = v.object({
@@ -10,7 +10,9 @@ const listingValidator = v.object({
   title: v.string(),
   city: v.string(),
   district: v.optional(v.string()),
+  street: v.optional(v.string()),
   description: v.string(),
+  imageUrl: v.optional(v.string()),
   priceEur: v.optional(v.number()),
   pricePeriod: v.optional(v.union(v.literal("hour"), v.literal("month"))),
   status: v.union(v.literal("published"), v.literal("closed")),
@@ -22,6 +24,15 @@ function clean(value: string, max: number): string {
   return value.replace(/[\u0000-\u001f\u007f]/g, " ").replace(/\s+/g, " ").trim().slice(0, max);
 }
 
+const LEGACY_STUTTGART_IMAGE = "https://roomscout.dev/demo-rooms/spare-rehearsal-room-stuttgart.webp";
+
+function publicImageUrl(row: Doc<"listings">): string | undefined {
+  if (row.imageUrl) return row.imageUrl;
+  return row.title === "Spare Rehearsal Room" && row.city === "Stuttgart"
+    ? LEGACY_STUTTGART_IMAGE
+    : undefined;
+}
+
 function toPublicListing(row: Doc<"listings">) {
   return {
     _id: row._id,
@@ -30,13 +41,21 @@ function toPublicListing(row: Doc<"listings">) {
     title: row.title,
     city: row.city,
     district: row.district,
+    street: row.street,
     description: row.description,
+    imageUrl: publicImageUrl(row),
     priceEur: row.priceEur,
     pricePeriod: row.pricePeriod,
     status: row.status,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
   };
+}
+
+async function toPublicListings(ctx: QueryCtx, rows: Doc<"listings">[]) {
+  return await Promise.all(rows.map(async (row) => {
+    return toPublicListing(row);
+  }));
 }
 
 export const listPublic = query({
@@ -57,7 +76,7 @@ export const listPublic = query({
           .withIndex("by_status_and_updated_at", (q) => q.eq("status", "published"))
           .order("desc")
           .take(limit);
-    return rows.map(toPublicListing);
+    return await toPublicListings(ctx, rows);
   },
 });
 

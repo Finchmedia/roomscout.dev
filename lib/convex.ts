@@ -8,7 +8,9 @@ export type PublicListing = {
   title: string;
   city: string;
   district?: string;
+  street?: string;
   description: string;
+  imageUrl?: string;
   priceEur?: number;
   pricePeriod?: "hour" | "month";
   status: "published" | "closed";

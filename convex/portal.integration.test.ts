@@ -204,6 +204,47 @@ describe("controlled portal authorization", () => {
     expect(publicRows[0]).not.toHaveProperty("ownerId");
   });
 
+  it("keeps bound provider metadata out of the public listing", async () => {
+    const t = convexTest(schema, modules);
+    const listingId = await t.run(async (ctx) => {
+      const now = Date.now();
+      const id = await ctx.db.insert("listings", {
+        ownerId: "simulated-provider:BER-01", ownerLabel: "Mara at Kanalwerk", side: "supply",
+        title: "Kanalwerk A", city: "Berlin", district: "Kreuzberg",
+        description: "A fictional interactive room.", priceEur: 350, pricePeriod: "month",
+        status: "published", createdAt: now, updatedAt: now,
+      });
+      await ctx.db.insert("simulatedProviderListings", {
+        listingId: id, seedKey: "berlin-demo-v1:BER-01", scenarioId: "BER-01", scenarioVersion: 1,
+        enabled: false, createdAt: now, updatedAt: now,
+      });
+      return id;
+    });
+
+    const listing = await t.query(getPublicListing, { listingId });
+    expect(listing).not.toHaveProperty("demo");
+    const serialized = JSON.stringify(listing);
+    expect(serialized).not.toContain("scenarioId");
+    expect(serialized).not.toContain("seedKey");
+    expect(serialized).not.toContain("privateFacts");
+    expect(serialized).not.toContain("Mara Levin");
+  });
+
+  it("maps the approved legacy Stuttgart fixture image without assigning images to arbitrary listings", async () => {
+    const t = convexTest(schema, modules);
+    const [legacyId, unrelatedId] = await t.run(async (ctx) => {
+      const common = { ownerId: "controlled-owner", ownerLabel: "Demo provider", side: "supply" as const, description: "Controlled room.", status: "published" as const, createdAt: 1, updatedAt: 1 };
+      return await Promise.all([
+        ctx.db.insert("listings", { ...common, title: "Spare Rehearsal Room", city: "Stuttgart" }),
+        ctx.db.insert("listings", { ...common, title: "Spare Rehearsal Room", city: "Hamburg" }),
+      ]);
+    });
+    expect(await t.query(getPublicListing, { listingId: legacyId })).toMatchObject({
+      imageUrl: "https://roomscout.dev/demo-rooms/spare-rehearsal-room-stuttgart.webp",
+    });
+    expect(await t.query(getPublicListing, { listingId: unrelatedId })).not.toHaveProperty("imageUrl");
+  });
+
   it("publishes and filters both room offers and room requests", async () => {
     const t = convexTest(schema, modules);
     const owner = t.withIdentity({ subject: "clerk_owner" });

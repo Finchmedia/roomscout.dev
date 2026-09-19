@@ -3,6 +3,7 @@ import type { Id } from "./_generated/dataModel";
 import type { MutationCtx } from "./_generated/server";
 import { internal } from "./_generated/api";
 import { assertTestResetAllowsWrite } from "./testReset";
+import { enqueueSimulatedProviderReply } from "./simulatedProviders";
 
 /** Shared by the authenticated UI and the run-scoped provider simulator.
  * Authorization belongs to each caller; membership is checked again here. */
@@ -26,5 +27,12 @@ export async function appendThreadMessage(ctx: MutationCtx, args: {
   });
   await ctx.db.patch(thread._id, { lastMessageAt: now });
   await ctx.scheduler.runAfter(0, internal.email.enqueueMessageNotification, { messageId });
+  await enqueueSimulatedProviderReply(ctx, {
+    thread,
+    listing,
+    messageId,
+    senderId: args.senderId,
+    body,
+  });
   return { threadId: thread._id, messageId };
 }

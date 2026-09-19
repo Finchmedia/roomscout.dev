@@ -1,6 +1,7 @@
 "use client";
 
-import { useConvexAuth, useQuery } from "convex/react";
+import { useConvexAuth, useMutation, useQuery } from "convex/react";
+import { useState } from "react";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
 import type { ThreadDetail } from "@/lib/convex";
@@ -9,7 +10,21 @@ import { MessageComposer } from "@/components/MessageComposer";
 export function ThreadConversation({ initialDetail, threadId }: { initialDetail: ThreadDetail; threadId: Id<"threads"> }) {
   const { isAuthenticated } = useConvexAuth();
   const liveDetail = useQuery(api.messages.getMine, isAuthenticated ? { threadId } : "skip");
+  const providerStatus = useQuery(api.simulatedProviders.getThreadStatus, isAuthenticated ? { threadId } : "skip");
+  const retryProvider = useMutation(api.simulatedProviders.retryMine);
+  const [retryState, setRetryState] = useState<"idle" | "pending" | "unavailable">("idle");
   const detail = liveDetail === undefined ? initialDetail : liveDetail;
+
+  async function retry() {
+    if (!providerStatus?.canRetry || retryState === "pending") return;
+    setRetryState("pending");
+    try {
+      const accepted = await retryProvider({ jobId: providerStatus.jobId });
+      setRetryState(accepted ? "idle" : "unavailable");
+    } catch {
+      setRetryState("unavailable");
+    }
+  }
 
   if (!detail) {
     return <section className="thread-card" data-roomscout-thread-state="unavailable"><h1>Conversation unavailable</h1><p>This thread is no longer available for the current portal account.</p></section>;
@@ -30,6 +45,37 @@ export function ThreadConversation({ initialDetail, threadId }: { initialDetail:
           </article>
         ))}
       </div>
+      {providerStatus?.status === "queued" ? (
+        <p className="provider-receipt" data-roomscout-provider-automation-state="queued" role="status">
+          Your message is queued for the fictional provider.
+        </p>
+      ) : providerStatus?.status === "processing" ? (
+        <p className="provider-receipt" data-roomscout-provider-automation-state="processing" role="status">
+          The fictional provider is preparing a reply.
+        </p>
+      ) : providerStatus?.status === "failed" ? (
+        <section
+          className="form-error"
+          data-roomscout-provider-automation-state="failed"
+          data-roomscout-provider-error-code={providerStatus.errorCode}
+          role="alert"
+        >
+          <strong>Provider reply unavailable</strong>
+          <p>
+            {providerStatus.errorCode === "SIMULATED_PROVIDER_REPLY_LIMIT"
+              ? "This demo conversation has reached its 12-reply limit. Continue with another fictional room."
+              : providerStatus.errorCode === "SIMULATED_PROVIDER_ENGINE_DISABLED" || providerStatus.errorCode === "SIMULATED_PROVIDER_BINDING_DISABLED"
+                ? "AI replies are currently unavailable for this demo room."
+                : "The fictional provider could not finish this reply. No provider message was delivered."}
+          </p>
+          {providerStatus.canRetry ? (
+            <button className="button secondary" disabled={retryState === "pending"} onClick={retry} type="button">
+              {retryState === "pending" ? "Retrying…" : "Retry provider reply"}
+            </button>
+          ) : null}
+          {retryState === "unavailable" ? <small>The retry is no longer available. Refresh the conversation status before trying again.</small> : null}
+        </section>
+      ) : null}
       <MessageComposer heading="Reply" reply threadId={threadId} />
     </section>
   );
