@@ -69,6 +69,9 @@ export type BerlinProviderScenarioDefinition = ScenarioDefinition & {
   };
 };
 
+/** Rooms whose slot is available immediately: Hofsignal, Ostschleife, Modul Ost. */
+const DEMO_EARLY_START_IDS = new Set([4, 16, 23]);
+
 function contractFacts(id: number): ProviderScenarioFact[] {
   const startDates = [
     { en: "The slot can start on the first of October 2026.", de: "Der Slot kann zum ersten Oktober 2026 starten." },
@@ -95,8 +98,16 @@ function contractFacts(id: number): ProviderScenarioFact[] {
       { id: "viewing_path", visibility: "private", disclosure: "when_relevant", kind: "term", term: "other", value: { en: "No viewing can be arranged while the slot is unavailable; do not invite the band to a viewing.", de: "Solange der Slot nicht verfügbar ist, kann keine Besichtigung vereinbart werden; lade die Band nicht dazu ein." } },
     ];
   }
+  // Demo happy-path rooms are free right away and say so unprompted; the rest
+  // of the catalog keeps its October/November starts so urgency still bites.
+  const earlyStart = DEMO_EARLY_START_IDS.has(id);
   return [
-    { id: "contract_start", visibility: "private", disclosure: "on_request", kind: "term", term: "other", value: startDates[(id - 1) % startDates.length]! },
+    earlyStart
+      ? { id: "contract_start", visibility: "private", disclosure: "when_relevant", kind: "term", term: "other", value: {
+        en: "The slot is free right away; the contract can start on Friday, 25 September 2026, or any later date the band prefers.",
+        de: "Der Slot ist sofort frei; der Vertrag kann am Freitag, 25. September 2026, oder zu jedem späteren Wunschtermin starten.",
+      } }
+      : { id: "contract_start", visibility: "private", disclosure: "on_request", kind: "term", term: "other", value: startDates[(id - 1) % startDates.length]! },
     { id: "contract_minimum", visibility: "private", disclosure: "on_request", kind: "term", term: "minimum_commitment", value: minimumCommitment },
     { id: "contract_notice", visibility: "private", disclosure: "on_request", kind: "term", term: "notice_period", value: noticePeriods[(id - 1) % noticePeriods.length]! },
     { id: "viewing_path", visibility: "private", disclosure: "when_relevant", kind: "term", term: "other", value: {

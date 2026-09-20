@@ -44,9 +44,12 @@ describe("Berlin provider scenario catalog", () => {
   });
 
   it("gives every provider stable internal start, minimum-term, notice and viewing knowledge", () => {
+    const earlyStart = new Set(["BER-04", "BER-16", "BER-23"]);
     for (const scenario of [...BERLIN_PROVIDER_SCENARIOS, LEGACY_STUTTGART_PROVIDER_SCENARIO]) {
       expect(scenario.facts).toEqual(expect.arrayContaining([
-        expect.objectContaining({ id: "contract_start", visibility: "private", disclosure: "on_request" }),
+        earlyStart.has(scenario.scenarioId)
+          ? expect.objectContaining({ id: "contract_start", visibility: "private", disclosure: "when_relevant", value: expect.objectContaining({ en: expect.stringContaining("free right away") }) })
+          : expect.objectContaining({ id: "contract_start", visibility: "private", disclosure: "on_request" }),
         expect.objectContaining({ id: "contract_minimum", kind: "term", term: "minimum_commitment" }),
         expect.objectContaining({ id: "contract_notice", kind: "term", term: "notice_period" }),
         expect.objectContaining({ id: "viewing_path", disclosure: "when_relevant" }),

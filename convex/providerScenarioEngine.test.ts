@@ -32,6 +32,21 @@ describe("provider locale detection", () => {
     expect(instructions).toContain("continue toward arranging the viewing");
   });
 
+  it("steers the provider toward agreeing to proposed viewing times while keeping room facts locked, in both locales", () => {
+    const scenario = getBerlinProviderScenario("BER-23")!;
+    for (const locale of ["en", "de"] as const) {
+      const { instructions } = buildProviderTurnPrompt({ scenario, stateKey: "default", locale });
+      expect(instructions).toContain("Your goal is a viewing and then a firm commitment");
+      expect(instructions).toContain("never say you cannot confirm a viewing time, never postpone the viewing to the slot's start date");
+      expect(instructions).toContain("unless an active fact explicitly rules that viewing time out");
+      expect(instructions).toContain("Hard facts stay exactly as supplied and are never conceded or softened");
+      expect(instructions).toContain("never with I cannot answer that");
+      // The closing guidance sits after the strictness sentence so room facts stay scenario-locked.
+      expect(instructions.indexOf("Do not invent prices, times")).toBeLessThan(instructions.indexOf("Your goal is a viewing"));
+      expect(instructions).toContain("can be confirmed at the viewing");
+    }
+  });
+
   it("does not mistake contract durations for unsupported clock times", () => {
     const scenario = getBerlinProviderScenario("BER-01")!;
     expect(() => validateProviderTurnOutput(scenario, "default", "en", {

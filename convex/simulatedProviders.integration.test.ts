@@ -282,6 +282,35 @@ describe("AI-simulated provider transport", () => {
     expect(job?.qualityNote).toBeUndefined();
   });
 
+  it("stores an affirmative viewing agreement for a dated afternoon proposal on the first call", async () => {
+    const f = await fixture();
+    const started = await f.musician.mutation(api.messages.start, {
+      listingId: f.listingId,
+      participantLabel: "Band A",
+      body: "Could we view the room on 5 October in the afternoon, around 15:00?",
+    });
+    const seenInstructions: string[] = [];
+    const model = new MockLanguageModelV4({
+      doGenerate: async ({ prompt }) => {
+        seenInstructions.push(JSON.stringify(prompt));
+        return response("5 October at 15:00 works for me. Let's meet at the room then; I'll message you if anything changes.");
+      },
+    });
+    await withModel(model, async () => {
+      await f.t.finishAllScheduledFunctions(() => vi.runAllTimers());
+    });
+    expect(model.doGenerateCalls).toHaveLength(1);
+    expect(seenInstructions[0]).toContain("Your goal is a viewing and then a firm commitment");
+    expect((await f.musician.query(api.messages.getMine, { threadId: started.threadId }))?.messages.map((message) => message.body)).toEqual([
+      "Could we view the room on 5 October in the afternoon, around 15:00?",
+      "5 October at 15:00 works for me. Let's meet at the room then; I'll message you if anything changes.",
+    ]);
+    const job = await f.t.run((ctx) => ctx.db.query("simulatedProviderJobs").first());
+    expect(job).toMatchObject({ status: "completed", attemptCount: 1 });
+    expect(job?.qualityNote).toBeUndefined();
+    expect(job?.errorCode).toBeUndefined();
+  });
+
   it("keeps the proposed time in the whitelist when the musician sends several follow-ups before the reply", async () => {
     const f = await fixture();
     const started = await f.musician.mutation(api.messages.start, { listingId: f.listingId, participantLabel: "Band A", body: "Could we do tomorrow at 17:00?" });
