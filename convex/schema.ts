@@ -80,6 +80,8 @@ export default defineSchema({
     leaseExpiresAt: v.optional(v.number()),
     responseMessageId: v.optional(v.id("messages")),
     errorCode: v.optional(v.string()),
+    /** "REPAIRED:<code>" or "FALLBACK:<code>" on a completed job whose first draft failed content validation. */
+    qualityNote: v.optional(v.string()),
     createdAt: v.number(),
     updatedAt: v.number(),
     completedAt: v.optional(v.number()),

@@ -42,7 +42,8 @@ function mentionedClockTimes(message: string): string[] {
   for (const match of message.matchAll(/\b(\d{1,2}):([0-5]\d)\s*(?:uhr|h)?\b/gi)) {
     times.push(`${Number(match[1])}:${match[2]}`);
   }
-  for (const match of message.matchAll(/\b(\d{1,2})\s*(?:uhr|h)\b/gi)) {
+  // The lookbehind keeps the minute part of "18:00 Uhr" from reading as a bare "0 Uhr".
+  for (const match of message.matchAll(/(?<![\d:])\b(\d{1,2})\s*(?:uhr|h)\b/gi)) {
     times.push(`${Number(match[1])}:00`);
   }
   for (const match of message.matchAll(/\b(\d{1,2})(?::([0-5]\d))?\s*(am|pm)\b/gi)) {
@@ -53,6 +54,14 @@ function mentionedClockTimes(message: string): string[] {
     times.push(`${hour}:${minute}`);
   }
   return [...new Set(times)];
+}
+
+function slotTimes(facts: readonly ProviderScenarioFact[]): string[] {
+  return [...new Set(facts.flatMap((fact) => fact.kind === "slot" ? [fact.startTime, fact.endTime] : []))];
+}
+
+function participantClockTimes(messages: readonly string[] | undefined): string[] {
+  return [...new Set((messages ?? []).flatMap((message) => mentionedClockTimes(message)))];
 }
 
 function factPrompt(fact: ProviderScenarioFact, locale: ProviderLocale): object {
@@ -112,11 +121,68 @@ export function buildProviderTurnPrompt(input: ProviderTurnInput): { instruction
   };
 }
 
+/** Corrective sentence appended to the normal instructions for the single repair attempt. */
+export function repairInstruction(
+  code: string,
+  input: ProviderTurnInput & { participantMessages?: string[] },
+): string {
+  const facts = factsForState(input.scenario, input.stateKey);
+  switch (code) {
+    case "SIMULATED_PROVIDER_TIME_INVENTED": {
+      const slot = slotTimes(facts);
+      const normalizedSlot = new Set(slot.map(normalizedTime));
+      const written = participantClockTimes(input.participantMessages).filter((time) => !normalizedSlot.has(time));
+      const allowed: string[] = [];
+      if (slot.length) allowed.push(slot.join(", "));
+      if (written.length) allowed.push(`${slot.length ? "and " : ""}times the participant wrote: ${written.join(", ")}`);
+      if (!allowed.length) return "Your previous draft mentioned a clock time, but no clock time is allowed here. Describe timing without a clock time.";
+      return `Your previous draft mentioned a clock time that is not one of the room's slot times. Only use these clock times: ${allowed.join(", ")}; otherwise describe timing without a clock time.`;
+    }
+    case "SIMULATED_PROVIDER_PRICE_INVENTED": {
+      const amounts = [...new Set(facts.flatMap((fact) => fact.kind === "price" ? [`€${fact.amountEur}`] : []))];
+      return `Your previous draft mentioned a euro amount that is not a room fact. Only mention these amounts: ${amounts.join(", ") || "none"}; mention no other euro amount and never the participant's budget.`;
+    }
+    case "SIMULATED_PROVIDER_LOCALE_MISMATCH":
+      return `Your previous draft used the wrong language. Write the entire message in ${input.locale === "de" ? "German" : "English"} and set the structured locale field to exactly ${input.locale}.`;
+    case "SIMULATED_PROVIDER_EMPTY_REPLY":
+      return "Your previous draft was empty. Write at least one full sentence.";
+    default:
+      return "Correct the previous draft so it follows the instructions above exactly.";
+  }
+}
+
+/** Safe reply committed when generation and the repair attempt both produce unusable content. */
+export function fallbackProviderReply(locale: ProviderLocale): ProviderTurnOutput {
+  return {
+    message: locale === "de"
+      ? "Danke, das prüfe ich kurz auf meiner Seite und melde mich in Kürze."
+      : "Thanks, let me double-check that on my side and get back to you shortly.",
+    referencedFactIds: [],
+    proposedTransition: null,
+    locale,
+  };
+}
+
+/** Bookkeeping fields are corrected rather than rejected: unknown fact ids are dropped and an invalid transition is nulled. */
+export function sanitizeProviderTurnOutput(
+  scenario: ScenarioDefinition,
+  stateKey: string,
+  candidate: ProviderTurnOutput,
+): ProviderTurnOutput {
+  const factIds = new Set(factsForState(scenario, stateKey).map((fact) => fact.id));
+  const referencedFactIds = [...new Set(candidate.referencedFactIds)].filter((id) => factIds.has(id));
+  const transitionValid = candidate.proposedTransition !== null && (scenario.dynamic?.transitions ?? []).some((transition) =>
+    transition.id === candidate.proposedTransition && transition.fromState === stateKey,
+  );
+  return { ...candidate, referencedFactIds, proposedTransition: transitionValid ? candidate.proposedTransition : null };
+}
+
 export function validateProviderTurnOutput(
   scenario: ScenarioDefinition,
   stateKey: string,
   expectedLocale: ProviderLocale,
   candidate: unknown,
+  context: { participantMessages?: string[] } = {},
 ): ProviderTurnOutput {
   const parsed = providerTurnOutputSchema.parse(candidate);
   const message = clean(parsed.message);
@@ -140,7 +206,8 @@ export function validateProviderTurnOutput(
   if (mentionedEuroAmounts(message).some((amount) => !allowedEuroAmounts.has(amount))) {
     throw new Error("SIMULATED_PROVIDER_PRICE_INVENTED");
   }
-  const allowedTimes = new Set(activeFacts.flatMap((fact) => fact.kind === "slot" ? [normalizedTime(fact.startTime), normalizedTime(fact.endTime)] : []));
+  // Room slot times are scenario facts; a time the participant proposed (e.g. a viewing) is conversation and may be echoed.
+  const allowedTimes = new Set([...slotTimes(activeFacts).map(normalizedTime), ...participantClockTimes(context.participantMessages)]);
   if (mentionedClockTimes(message).some((time) => !allowedTimes.has(time))) {
     throw new Error("SIMULATED_PROVIDER_TIME_INVENTED");
   }

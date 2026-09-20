@@ -136,6 +136,7 @@ export const claimJob = internalMutation({
     scenarioId: v.string(), scenarioVersion: v.number(), stateKey: v.string(),
     agentThreadId: v.string(), promptMessageId: v.string(),
     locale: v.union(v.literal("en"), v.literal("de")),
+    participantMessages: v.array(v.string()),
   }), v.null()),
   handler: async (ctx, args) => {
     const job = await ctx.db.get(args.jobId);
@@ -177,6 +178,17 @@ export const claimJob = internalMutation({
       });
       promptMessageId = saved.messageId;
     }
+    // Recent participant wording lets the validator accept echoed conversational times (e.g. a proposed viewing).
+    // Anchored to the input message so later quick follow-ups neither push its time out of the window nor leak in.
+    const recent = await ctx.db.query("messages")
+      .withIndex("by_thread_and_created_at", (q) => q.eq("threadId", job.threadId).lte("createdAt", inputMessage.createdAt))
+      .order("desc")
+      .take(10);
+    const participantMessages = recent
+      .filter((message) => message.senderId === thread.participantId && message._creationTime <= inputMessage._creationTime)
+      .slice(0, 3)
+      .reverse()
+      .map((message) => message.body.slice(0, 600));
     await ctx.db.patch(job._id, {
       status: "processing", attemptCount: job.attemptCount + 1, claimToken: args.claimToken,
       agentInputMessageId: promptMessageId,
@@ -185,7 +197,7 @@ export const claimJob = internalMutation({
     return {
       scenarioId: runtime.scenarioId, scenarioVersion: runtime.scenarioVersion,
       stateKey: runtime.stateKey, agentThreadId: runtime.agentThreadId,
-      promptMessageId, locale: job.locale,
+      promptMessageId, locale: job.locale, participantMessages,
     };
   },
 });
@@ -208,6 +220,7 @@ export const completeJob = internalMutation({
   args: {
     jobId: v.id("simulatedProviderJobs"), claimToken: v.string(), message: v.string(),
     proposedTransition: v.union(v.string(), v.null()), locale: v.union(v.literal("en"), v.literal("de")),
+    qualityNote: v.optional(v.string()),
   },
   returns: v.union(v.object({ messageId: v.id("messages") }), v.null()),
   handler: async (ctx, args) => {
@@ -255,7 +268,7 @@ export const completeJob = internalMutation({
     const now = Date.now();
     await ctx.db.patch(job._id, {
       status: "completed", responseMessageId: result.messageId, agentResponseMessageId, claimToken: undefined,
-      leaseExpiresAt: undefined, errorCode: undefined, completedAt: now, updatedAt: now,
+      leaseExpiresAt: undefined, errorCode: undefined, qualityNote: args.qualityNote, completedAt: now, updatedAt: now,
     });
     await ctx.db.patch(runtime._id, {
       stateKey: nextState, locale: args.locale, replyCount: runtime.replyCount + 1, updatedAt: now,

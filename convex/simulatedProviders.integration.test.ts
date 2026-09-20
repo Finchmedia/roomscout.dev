@@ -208,32 +208,112 @@ describe("AI-simulated provider transport", () => {
     expect(await f.t.run((ctx) => ctx.db.query("simulatedProviderJobs").first())).toMatchObject({ status: "completed", attemptCount: 3 });
   });
 
-  it("retries a fabricated price twice, then fails without persisting provider text", async () => {
+  it("repairs an invented clock time with one corrective model call and keeps the reply", async () => {
     const f = await fixture();
-    const started = await f.musician.mutation(api.messages.start, { listingId: f.listingId, participantLabel: "Band A", body: "What does it cost?" });
-    const model = new MockLanguageModelV4({ doGenerate: response("The room costs €999 per month.") });
+    const started = await f.musician.mutation(api.messages.start, { listingId: f.listingId, participantLabel: "Band A", body: "Is Wednesday available?" });
+    const seenPrompts: string[] = [];
+    const model = new MockLanguageModelV4({
+      doGenerate: async ({ prompt }) => {
+        seenPrompts.push(JSON.stringify(prompt));
+        return seenPrompts.length === 1
+          ? response("Yes, and we could meet tomorrow at 17:00 for a viewing.")
+          : response("Yes. Wednesday 18:00–22:00 is available for €350 per month.");
+      },
+    });
     await withModel(model, async () => {
       await f.t.finishAllScheduledFunctions(() => vi.runAllTimers());
     });
-    expect(model.doGenerateCalls).toHaveLength(3);
-    expect((await f.musician.query(api.messages.getMine, { threadId: started.threadId }))?.messages).toHaveLength(1);
-    expect(await f.t.run((ctx) => ctx.db.query("simulatedProviderJobs").first())).toMatchObject({ status: "failed", attemptCount: 3 });
+    expect(model.doGenerateCalls).toHaveLength(2);
+    expect(seenPrompts[0]).not.toContain("Only use these clock times");
+    expect(seenPrompts[1]).toContain("Only use these clock times: 18:00, 22:00;");
+    expect((await f.musician.query(api.messages.getMine, { threadId: started.threadId }))?.messages.map((message) => message.body)).toEqual([
+      "Is Wednesday available?",
+      "Yes. Wednesday 18:00–22:00 is available for €350 per month.",
+    ]);
+    const job = await f.t.run((ctx) => ctx.db.query("simulatedProviderJobs").first());
+    expect(job).toMatchObject({ status: "completed", attemptCount: 1, qualityNote: "REPAIRED:SIMULATED_PROVIDER_TIME_INVENTED" });
+    expect(job?.errorCode).toBeUndefined();
+  });
+
+  it("sends the locale fallback instead of going silent when the repair also fails", async () => {
+    const f = await fixture();
+    const started = await f.musician.mutation(api.messages.start, { listingId: f.listingId, participantLabel: "Band A", body: "Was kostet der Raum?" });
+    const model = new MockLanguageModelV4({
+      doGenerate: {
+        ...response(),
+        content: [{ type: "text" as const, text: JSON.stringify({
+          message: "Der Raum kostet €999 im Monat.", referencedFactIds: ["price_monthly"], proposedTransition: null, locale: "de",
+        }) }],
+      },
+    });
+    await withModel(model, async () => {
+      await f.t.finishAllScheduledFunctions(() => vi.runAllTimers());
+    });
+    expect(model.doGenerateCalls).toHaveLength(2);
+    expect((await f.musician.query(api.messages.getMine, { threadId: started.threadId }))?.messages.map((message) => message.body)).toEqual([
+      "Was kostet der Raum?",
+      "Danke, das prüfe ich kurz auf meiner Seite und melde mich in Kürze.",
+    ]);
+    const job = await f.t.run((ctx) => ctx.db.query("simulatedProviderJobs").first());
+    expect(job).toMatchObject({ status: "completed", attemptCount: 1, qualityNote: "FALLBACK:SIMULATED_PROVIDER_PRICE_INVENTED" });
+    expect(job?.errorCode).toBeUndefined();
     const runtime = await f.t.run((ctx) => ctx.db.query("simulatedProviderThreads").first());
+    expect(runtime).toMatchObject({ locale: "de", stateKey: "default", replyCount: 1 });
     const agentHistory = await f.t.run((ctx) => listMessages(ctx, components.agent, {
       threadId: runtime!.agentThreadId,
       paginationOpts: { cursor: null, numItems: 10 },
     }));
-    expect(agentHistory.page.map((message) => message.message?.role)).toEqual(["user"]);
+    expect(agentHistory.page.map((message) => message.message?.role).reverse()).toEqual(["user", "assistant"]);
+  });
+
+  it("lets the provider agree to a viewing time the musician proposed on the first call", async () => {
+    const f = await fixture();
+    const started = await f.musician.mutation(api.messages.start, { listingId: f.listingId, participantLabel: "Band A", body: "Could we do tomorrow at 17:00?" });
+    const model = new MockLanguageModelV4({ doGenerate: response("Sure, tomorrow at 17:00 works for me. See you at the room.") });
+    await withModel(model, async () => {
+      await f.t.finishAllScheduledFunctions(() => vi.runAllTimers());
+    });
+    expect(model.doGenerateCalls).toHaveLength(1);
+    expect((await f.musician.query(api.messages.getMine, { threadId: started.threadId }))?.messages.at(-1)).toMatchObject({
+      mine: false, body: "Sure, tomorrow at 17:00 works for me. See you at the room.",
+    });
+    const job = await f.t.run((ctx) => ctx.db.query("simulatedProviderJobs").first());
+    expect(job).toMatchObject({ status: "completed", attemptCount: 1 });
+    expect(job?.qualityNote).toBeUndefined();
+  });
+
+  it("keeps the proposed time in the whitelist when the musician sends several follow-ups before the reply", async () => {
+    const f = await fixture();
+    const started = await f.musician.mutation(api.messages.start, { listingId: f.listingId, participantLabel: "Band A", body: "Could we do tomorrow at 17:00?" });
+    for (const body of ["Or Thursday?", "We are a trio.", "Drums included?", "Any parking?"]) {
+      await f.musician.mutation(api.messages.send, { threadId: started.threadId, body });
+    }
+    let calls = 0;
+    const model = new MockLanguageModelV4({
+      doGenerate: async () => ++calls === 1
+        ? response("Sure, tomorrow at 17:00 works for me. See you at the room.")
+        : response("Yes. Wednesday 18:00–22:00 is available for €350 per month."),
+    });
+    await withModel(model, async () => {
+      await f.t.finishAllScheduledFunctions(() => vi.runAllTimers());
+    });
+    const jobs = await f.t.run((ctx) => ctx.db.query("simulatedProviderJobs").order("asc").collect());
+    expect(jobs[0]).toMatchObject({ status: "completed", attemptCount: 1 });
+    expect(jobs[0]?.qualityNote).toBeUndefined();
+    expect(model.doGenerateCalls).toHaveLength(jobs.length);
   });
 
   it("allows the owning juror one controlled retry after a visible failure", async () => {
     const f = await fixture();
     const started = await f.musician.mutation(api.messages.start, { listingId: f.listingId, participantLabel: "Band A", body: "What does it cost?" });
-    const invalidModel = new MockLanguageModelV4({ doGenerate: response("The room costs €999 per month.") });
-    await withModel(invalidModel, async () => {
+    const brokenModel = new MockLanguageModelV4({ doGenerate: async () => { throw new Error("gateway unavailable"); } });
+    await withModel(brokenModel, async () => {
       await f.t.finishAllScheduledFunctions(() => vi.runAllTimers());
     });
+    expect(brokenModel.doGenerateCalls).toHaveLength(3);
     const failed = await f.t.run((ctx) => ctx.db.query("simulatedProviderJobs").first());
+    expect(failed).toMatchObject({ status: "failed", attemptCount: 3 });
+    expect((await f.musician.query(api.messages.getMine, { threadId: started.threadId }))?.messages).toHaveLength(1);
     const outsider = f.t.withIdentity({ subject: "juror-b", email: "juror-b@example.com", emailVerified: true });
     await expect(outsider.mutation(api.simulatedProviders.retryMine, { jobId: failed!._id })).resolves.toBe(false);
     await expect(f.musician.mutation(api.simulatedProviders.retryMine, { jobId: failed!._id })).resolves.toBe(true);
