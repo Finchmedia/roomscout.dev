@@ -38,6 +38,8 @@ function assertPortalConfiguration(confirmation: string) {
 async function startNextForThread(ctx: MutationCtx, runtimeId: Id<"simulatedProviderThreads">) {
   const runtime = await ctx.db.get(runtimeId);
   if (!runtime || runtime.activeJobId) return;
+  // A participant reset deletes the thread; nothing is left to reply to.
+  if (!(await ctx.db.get(runtime.threadId))) return;
   const next = await ctx.db.query("simulatedProviderJobs")
     .withIndex("by_thread_id_and_status_and_created_at", (q) =>
       q.eq("threadId", runtime.threadId).eq("status", "queued"),

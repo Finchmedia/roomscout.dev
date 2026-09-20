@@ -78,6 +78,21 @@ The Clerk Convex token must contain the signed `email` claim (and, when
 available, `email_verified`). RoomScout stores that address privately by Clerk
 subject; public listing and thread projections never expose it.
 
+### Participant reset
+
+`POST https://<portal-deployment>.convex.site/participant-reset` with the header
+`X-RoomScout-Reset-Secret: <PORTAL_RESET_SECRET>` and the body
+`{ "emailAddresses": ["band@agentmail.to"] }` (one to five addresses) wipes the
+matched portal accounts' conversations: their threads, messages, simulated
+provider jobs, runtime state and the attached Agent-component threads. The
+portal account, its Clerk login, listings and scenario bindings stay, so the
+next message starts every simulated provider at its scenario's default state.
+The response is `202 { resetIds, matched }` when an account matched, `200` with
+`matched: 0` otherwise, `401` for a wrong secret, `400` for a malformed body and
+`503` while `PORTAL_RESET_SECRET` is not set on the portal deployment. Deletion
+runs asynchronously in bounded pages after the response; `participantResets`
+holds the progress. The RoomScout app calls this from its own reset button.
+
 ## Wire it to RoomScout
 
 After deploying this portal to its own domain and configuring Clerk:

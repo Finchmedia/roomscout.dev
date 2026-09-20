@@ -17,6 +17,7 @@ import type * as integrations_structuredConvexGateway from "../integrations/stru
 import type * as listings from "../listings.js";
 import type * as messageStorage from "../messageStorage.js";
 import type * as messages from "../messages.js";
+import type * as participantReset from "../participantReset.js";
 import type * as portalIdentity from "../portalIdentity.js";
 import type * as portalUsers from "../portalUsers.js";
 import type * as providerScenarioEngine from "../providerScenarioEngine.js";
@@ -45,6 +46,7 @@ declare const fullApi: ApiFromModules<{
   listings: typeof listings;
   messageStorage: typeof messageStorage;
   messages: typeof messages;
+  participantReset: typeof participantReset;
   portalIdentity: typeof portalIdentity;
   portalUsers: typeof portalUsers;
   providerScenarioEngine: typeof providerScenarioEngine;

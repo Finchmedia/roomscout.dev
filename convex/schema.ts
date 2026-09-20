@@ -91,13 +91,37 @@ export default defineSchema({
     .index("by_thread_id_and_status_and_created_at", ["threadId", "status", "createdAt"])
     .index("by_status_and_updated_at", ["status", "updatedAt"]),
 
+  /** One participant's conversation wipe on this portal, requested by the RoomScout
+   * app over POST /participant-reset. The pager deletes in bounded pages; the row
+   * is the progress checkpoint and the idempotency key while it is not completed. */
+  participantResets: defineTable({
+    participantId: v.string(),
+    status: v.union(v.literal("scheduled"), v.literal("running"), v.literal("completed")),
+    /** The last kind of document a page worked on; "done" once nothing is left. */
+    stage: v.union(
+      v.literal("pending"),
+      v.literal("jobs"),
+      v.literal("runtime"),
+      v.literal("messages"),
+      v.literal("threads"),
+      v.literal("done"),
+    ),
+    deletedDocumentCount: v.number(),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+    completedAt: v.optional(v.number()),
+  }).index("by_participant_and_created_at", ["participantId", "createdAt"]),
+
   portalUsers: defineTable({
     authSubject: v.string(),
+    /** Always stored lowercased (see portalUsers.ts), so equality lookups are case-insensitive. */
     emailAddress: v.string(),
     displayName: v.optional(v.string()),
     createdAt: v.number(),
     updatedAt: v.number(),
-  }).index("by_auth_subject", ["authSubject"]),
+  })
+    .index("by_auth_subject", ["authSubject"])
+    .index("by_email_address", ["emailAddress"]),
 
   listings: defineTable({
     ownerId: v.string(),
