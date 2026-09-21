@@ -47,6 +47,18 @@ describe("provider locale detection", () => {
     }
   });
 
+  it("supplies the exact address and tells the provider to state it", () => {
+    const scenario = getBerlinProviderScenario("BER-23")!;
+    for (const locale of ["en", "de"] as const) {
+      const { instructions } = buildProviderTurnPrompt({ scenario, stateKey: "default", locale });
+      expect(instructions).toContain("soft logistics such as viewing dates, the exact address");
+      expect(instructions).toContain("state the exact address from the active facts if one is supplied");
+      expect(instructions).toContain("Alt-Marzahn 23, 12685 Berlin");
+    }
+    expect(buildProviderTurnPrompt({ scenario, stateKey: "default", locale: "de" }).instructions)
+      .toContain("Die genaue Adresse ist");
+  });
+
   it("does not mistake contract durations for unsupported clock times", () => {
     const scenario = getBerlinProviderScenario("BER-01")!;
     expect(() => validateProviderTurnOutput(scenario, "default", "en", {
@@ -92,6 +104,30 @@ describe("provider reply validation, repair and fallback", () => {
     expect(() => validateProviderTurnOutput(scenario, "default", "en", {
       message: "Yes, €300 per month is fine.", referencedFactIds: ["price_monthly"], proposedTransition: null, locale: "en",
     }, { participantMessages: ["Would you take €300 per month?"] })).toThrow("SIMULATED_PROVIDER_PRICE_INVENTED");
+  });
+
+  it("accepts a reply that names the exact address while a viewing is agreed", () => {
+    const modulOst = getBerlinProviderScenario("BER-23")!;
+    expect(() => validateProviderTurnOutput(modulOst, "default", "en", {
+      message: "Sure, the room is at Alt-Marzahn 23, 12685 Berlin. Friday works, see you then.",
+      referencedFactIds: ["address", "viewing_path"], proposedTransition: null, locale: "en",
+    })).not.toThrow();
+    expect(() => validateProviderTurnOutput(modulOst, "default", "de", {
+      message: "Gern, die genaue Adresse ist Alt-Marzahn 23, 12685 Berlin. Freitag passt, bis dann.",
+      referencedFactIds: ["address"], proposedTransition: null, locale: "de",
+    })).not.toThrow();
+    expect(sanitizeProviderTurnOutput(modulOst, "default", {
+      message: "The room is at Alt-Marzahn 23, 12685 Berlin.",
+      referencedFactIds: ["address"], proposedTransition: null, locale: "en",
+    }).referencedFactIds).toEqual(["address"]);
+  });
+
+  it("still rejects an invented euro amount in an address reply", () => {
+    const modulOst = getBerlinProviderScenario("BER-23")!;
+    expect(() => validateProviderTurnOutput(modulOst, "default", "en", {
+      message: "The room is at Alt-Marzahn 23, 12685 Berlin and costs €199 per month.",
+      referencedFactIds: ["address"], proposedTransition: null, locale: "en",
+    })).toThrow("SIMULATED_PROVIDER_PRICE_INVENTED");
   });
 
   it("lists the slot times and participant times in the time repair instruction", () => {

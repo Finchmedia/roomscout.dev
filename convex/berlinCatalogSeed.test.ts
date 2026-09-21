@@ -60,6 +60,18 @@ describe("Berlin catalog seed", () => {
     expect(await t.run((ctx) => ctx.db.get(bindings[0]!._id))).toMatchObject({ enabled: true });
   });
 
+  it("keeps the private exact address out of every seeded public listing", async () => {
+    const t = convexTest(schema, modules);
+    await t.mutation(seedBerlinCatalog, { dryRun: false, confirmation: berlinCatalogSeedConfirmation, expectedSiteUrl: siteUrl });
+    const rows = await t.run((ctx) => ctx.db.query("listings").collect());
+    expect(rows).toHaveLength(24);
+    for (const row of rows) {
+      expect(row.street, row.title).not.toMatch(/\d/);
+      expect(row.description, row.title).not.toMatch(/\b\d{5}\b/);
+      expect(row.description, row.title).not.toContain("The exact address is");
+    }
+  });
+
   it("fails closed for the wrong deployment target", async () => {
     const t = convexTest(schema, modules);
     await expect(t.mutation(seedBerlinCatalog, {

@@ -124,6 +124,8 @@ function scenario(
   const scenarioId = `BER-${String(id).padStart(2, "0")}` as const;
   const street = BERLIN_STREETS[input.publicListing.slug];
   if (!street) throw new Error("BERLIN_CATALOG_STREET_MISSING");
+  const address = BERLIN_ADDRESSES[input.publicListing.slug];
+  if (!address) throw new Error("BERLIN_CATALOG_ADDRESS_MISSING");
   const factNotes = new Map(input.privateFacts.map((item) => [item.factId, item]));
   const recurringPriceFacts: ProviderScenarioFact[] = id === 5
     ? [
@@ -191,6 +193,19 @@ function scenario(
       term: "other" as const,
       value: { en: item.statement, de: item.statement },
     })),
+    // Every room knows where it is, so the provider can name the exact address on request or
+    // when a viewing is arranged. Only the bare street name is public on the listing.
+    {
+      id: "address",
+      visibility: "private" as const,
+      disclosure: "when_relevant" as const,
+      kind: "term" as const,
+      term: "access" as const,
+      value: {
+        en: `The exact address is ${street} ${address.houseNumber}, ${address.postalCode} Berlin (${input.publicListing.district}). The entrance is signposted from the street.`,
+        de: `Die genaue Adresse ist ${street} ${address.houseNumber}, ${address.postalCode} Berlin (${input.publicListing.district}). Der Eingang ist von der Straße ausgeschildert.`,
+      },
+    },
   ];
   let previousState = "default";
   const transitions = input.allowedTransitions.map((item) => {
@@ -249,6 +264,37 @@ const BERLIN_STREETS: Record<string, string> = {
   "ostschleife": "Roedeliusplatz", "transitspur": "Elsenstraße", "waldpuls": "Köpenicker Landstraße",
   "westfenster": "Schillerstraße", "schichtwechsel": "Natalissteig", "nordresonanz": "Oranienburger Straße",
   "seetakt": "Berliner Allee", "modul-ost": "Alt-Marzahn", "uferklang": "Grünstraße",
+};
+
+/**
+ * House number and postal code per room, kept private: the public listing shows only the bare
+ * street name, while the provider can state the full address on request or when a viewing is set.
+ */
+const BERLIN_ADDRESSES: Record<string, { houseNumber: string; postalCode: string }> = {
+  "kanalwerk-a": { houseNumber: "114", postalCode: "10999" }, // Reichenberger Straße, Kreuzberg
+  "brueckenbeat": { houseNumber: "23", postalCode: "10245" }, // Kopernikusstraße, Friedrichshain
+  "ringraum-sued": { houseNumber: "148", postalCode: "12099" }, // Tempelhofer Damm, Tempelhof
+  "hofsignal": { houseNumber: "9", postalCode: "10999" }, // Adalbertstraße, Kreuzberg
+  "nebenkanal": { houseNumber: "52", postalCode: "12045" }, // Weichselstraße, Neukölln
+  "treppenhaus-sessions": { houseNumber: "72", postalCode: "10965" }, // Kreuzbergstraße, Kreuzberg
+  "suedstern-frequenz": { houseNumber: "4", postalCode: "10961" }, // Südstern, Kreuzberg
+  "gleisbogen": { houseNumber: "17", postalCode: "10823" }, // Belziger Straße, Schöneberg
+  "morgenmodul": { houseNumber: "31", postalCode: "10245" }, // Revaler Straße, Friedrichshain
+  "rollfeld-drei": { houseNumber: "63", postalCode: "12053" }, // Boddinstraße, Neukölln
+  "leisetreter": { houseNumber: "22", postalCode: "12055" }, // Hertzbergstraße, Neukölln
+  "westakkord": { houseNumber: "35", postalCode: "10823" }, // Belziger Straße, Schöneberg
+  "werkhalle-takt": { houseNumber: "47", postalCode: "10551" }, // Stromstraße, Moabit
+  "nordstrom-probe": { houseNumber: "19", postalCode: "13347" }, // Schulstraße, Wedding
+  "gartenpegel": { houseNumber: "28", postalCode: "13187" }, // Breite Straße, Pankow
+  "ostschleife": { houseNumber: "5", postalCode: "10365" }, // Roedeliusplatz, Lichtenberg
+  "transitspur": { houseNumber: "84", postalCode: "12435" }, // Elsenstraße, Alt-Treptow
+  "waldpuls": { houseNumber: "12", postalCode: "12437" }, // Köpenicker Landstraße, Plänterwald
+  "westfenster": { houseNumber: "16", postalCode: "10625" }, // Schillerstraße, Charlottenburg
+  "schichtwechsel": { houseNumber: "6", postalCode: "13629" }, // Natalissteig, Siemensstadt
+  "nordresonanz": { houseNumber: "41", postalCode: "13437" }, // Oranienburger Straße, Reinickendorf
+  "seetakt": { houseNumber: "58", postalCode: "13088" }, // Berliner Allee, Weißensee
+  "modul-ost": { houseNumber: "23", postalCode: "12685" }, // Alt-Marzahn, Marzahn
+  "uferklang": { houseNumber: "7", postalCode: "12555" }, // Grünstraße, Köpenick
 };
 
 const disclosure = "Fictional room · AI-simulated provider · Interactive demo" as const;

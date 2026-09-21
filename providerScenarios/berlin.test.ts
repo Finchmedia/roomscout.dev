@@ -64,6 +64,41 @@ describe("Berlin provider scenario catalog", () => {
     ]));
   });
 
+  it("gives every room exactly one private exact-address fact and leaves the public facts alone", () => {
+    for (const item of BERLIN_PROVIDER_SCENARIOS) {
+      const addressFacts = item.facts.filter((fact) => fact.id === "address");
+      expect(addressFacts, item.scenarioId).toHaveLength(1);
+      const addressFact = addressFacts[0]!;
+      expect(addressFact).toMatchObject({ visibility: "private", disclosure: "when_relevant", kind: "term" });
+      if (addressFact.kind !== "term") throw new Error("address fact must be a term fact");
+      for (const text of [addressFact.value.en, addressFact.value.de]) {
+        expect(text, item.scenarioId).toContain(item.catalog.street);
+        expect(text, item.scenarioId).toMatch(/\b\d{5}\b/);
+        // No clock time and no euro amount, so the provider can quote it without tripping the validator.
+        expect(text, item.scenarioId).not.toMatch(/\d{1,2}:\d{2}/);
+        expect(text, item.scenarioId).not.toMatch(/€|\beuros?\b|\beur\b/i);
+      }
+      expect(item.publicListing.publicFactIds).not.toContain("address");
+      expect(item.catalog.street).not.toMatch(/\d/);
+    }
+    expect(getBerlinProviderScenario("BER-23")?.facts).toContainEqual(expect.objectContaining({
+      id: "address",
+      value: expect.objectContaining({ en: expect.stringContaining("Alt-Marzahn 23, 12685 Berlin") }),
+    }));
+  });
+
+  it("keeps the public fact ids of the main fit unchanged", () => {
+    expect(getBerlinProviderScenario("BER-01")?.publicListing.publicFactIds).toEqual([
+      "price_monthly", "slot_1", "feature_drum_kit", "feature_pa", "feature_backline",
+      "feature_acoustic_drums", "feature_storage", "feature_step_free", "listing_capacity",
+      "public_1", "public_2",
+    ]);
+    for (const item of BERLIN_PROVIDER_SCENARIOS) {
+      const publicIds = item.facts.filter((fact) => fact.visibility === "public").map((fact) => fact.id);
+      expect(item.publicListing.publicFactIds, item.scenarioId).toEqual(publicIds);
+    }
+  });
+
   it("accepts numeric versions and rejects catalog version mismatches", () => {
     expect(getBerlinProviderScenario("BER-01", 1)?.scenarioId).toBe("BER-01");
     expect(getBerlinProviderScenario("BER-01", 2)).toBeUndefined();
